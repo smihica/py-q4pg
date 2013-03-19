@@ -14,13 +14,15 @@ __License: MIT__
 
     >>> import q4pg
     >>>
-    >>> q = q4pg.QueueManager('dbname=db1 user=user')
+    >>> q = q4pg.QueueManager(
+                dsn         = 'dbname=db1 user=user', # psycopg2's dsn argument. (default "")
+                table_name  = 'mq',                   # name of the table to use. ("mq")
+                data_type   = 'json',                 # stored data type : 'json' or 'text'. ("json")
+                data_length = 1023)                   # data string max length. (1023)
 
 ##### To create queue table
 
-    >>> q.create_table(table_name='mq',     # name of the table to create.
-                       data_type='json',    # 'json' or 'text'
-                       data_length=1023)    # data string max length.
+    >>> q.create_table()
 
 ##### enqueue
 
@@ -32,7 +34,7 @@ __License: MIT__
 
     >>> with q.dequeue('tag') as dq:
             print dq
-        => {'the_data': 'is'}
+        => {'the_data': 'must_be'}
 
     >>> with q.dequeue('another-tag') as dq:
             print dq
