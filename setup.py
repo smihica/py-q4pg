@@ -1,10 +1,6 @@
 # -*- coding: utf-8 -*-
 from distutils.core import setup, Extension
 
-requires = [
-    'psycopg2>=2.4',
-    ]
-
 setup(
     name = 'py-q4pg',
     py_modules = ['q4pg'],
@@ -15,7 +11,7 @@ setup(
     url = "https://github.com/smihica/py-q4pg",
     download_url = "",
     keywords = ["db", "queue", "psql"],
-    requires = ['psycopg2'],
+    requires = ['json', 'psycopg2'],
     classifiers = [
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
