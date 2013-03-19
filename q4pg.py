@@ -18,6 +18,9 @@ def session(dsn):
         if conn:
             conn.close()
 
+
+LISTEN_TIMEOUT_SECONDS = 60 # 1min
+
 class QueueManager(object):
 
     def __init__(self,
@@ -125,9 +128,8 @@ listen %s;
                     continue
                 conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
                 cur.execute((self.listen_sql % (tag,)))
-                poll = select.poll()
-                poll.register(conn, select.POLLIN)
-                events = poll.poll()
+                if select.select([conn],[],[],LISTEN_TIMEOUT_SECONDS) == ([],[],[]):
+                    continue
                 conn.poll()
                 if conn.notifies:
                     notify = conn.notifies.pop()
