@@ -1,6 +1,8 @@
-import psycopg2
-import json
 from contextlib import contextmanager
+import select
+import json
+import psycopg2
+import psycopg2.extensions
 
 @contextmanager
 def session(dsn):
@@ -71,6 +73,12 @@ delete from %s where id = %%s and pg_try_advisory_lock(tableoid::int, id)
 delete from %s where id = %%s
   returning pg_advisory_unlock(tableoid::int, id);
 """ % (n,)
+        self.notify_sql = """
+notify %s;
+"""
+        self.listen_sql = """
+listen %s;
+"""
 
     def create_table(self):
         with session(self.dsn) as (conn, cur):
@@ -88,7 +96,8 @@ delete from %s where id = %%s
 
     def enqueue(self, tag, data):
         with session(self.dsn) as (conn, cur):
-            cur.execute(self.insert_sql, (tag, self.serializer(data),))
+            cur.execute((self.insert_sql + (self.notify_sql % (tag,))),
+                        (tag, self.serializer(data),))
             conn.commit()
 
     @contextmanager
@@ -103,6 +112,31 @@ delete from %s where id = %%s
             else:
                 yield res
             raise StopIteration()
+
+    def listen(self, tag):
+        while True:
+            with session(self.dsn) as (conn, cur):
+                cur.execute(self.select_sql, (tag,))
+                res = cur.fetchone()
+                if res:
+                    yield self.deserializer(res[2])
+                    cur.execute(self.ack_sql, (res[0],))
+                    conn.commit()
+                    continue
+                conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+                cur.execute((self.listen_sql % (tag,)))
+                poll = select.poll()
+                poll.register(conn, select.POLLIN)
+                events = poll.poll()
+                conn.poll()
+                if conn.notifies:
+                    notify = conn.notifies.pop()
+                    cur.execute(self.select_sql, (tag,))
+                    res = cur.fetchone()
+                    if res:
+                        yield self.deserializer(res[2])
+                        cur.execute(self.ack_sql, (res[0],))
+                        conn.commit()
 
     def dequeue_immediate(self, tag):
         with session(self.dsn) as (conn, cur):
@@ -134,9 +168,3 @@ delete from %s where id = %%s
             cur.execute(self.count_sql, (tag,))
             res = cur.fetchone()[0]
             return int(res)
-
-    def listen(self):
-        pass
-
-    def set_listener(self, tag, fn):
-        pass

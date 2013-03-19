@@ -48,9 +48,13 @@ __License: MIT__
 
 ##### dequeue (guard)
 
+    # dequeue() is transactional.
+    # if you abort in the with statement,
+    # the queue is remained and can be gotten other runner or next time.
+
     >>> with q.dequeue('tag') as dq:
-           print dq
-           x = ( 1 / 0 )                    # <= Error
+            print dq
+            x = ( 1 / 0 )                    # <= Error
 
         => {'json': 'serializable_data'}
         => !!! Zero devision Error !!!
@@ -59,9 +63,26 @@ __License: MIT__
         => [ (2, 'tag', '{"json":"serializable_data"}', datetime.datetime(...)),  # <= remained.
              (3, 'tag', '{"more":"data"}', datetime.datetime(...)), ]
 
+##### dequeue (listen)
+
+    (1) >>> for i in q.listen('tag'):        # waiting for queue notification.
+                print i
+
+            => ... waiting for queue ...
+
+        (2) >>> q.enqueue('tag', {'foo', 'bar'})  # someone push a queue.
+
+    (1)     => {'foo', 'bar'}
+
+            => ... waiting for next queue ...
+
+    # listen() is also transactional.
+    # So if you abort in the for loop,
+    # the queue is remained and can be gotten other runner or next time.
+
 ##### dequeue (immediate)
 
-    >>> q.dequeue_immediate('tag')          # commited immediately. cannot guard.
+    >>> q.dequeue_immediate('tag')          # removed immediately, not transactional.
         => {'json': 'serializable_data'}
 
 ##### counting items
