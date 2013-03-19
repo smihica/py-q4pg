@@ -1,0 +1,9 @@
+build/
+dist/
+memo/
+*.so
+*.o
+\#*
+.\#*
+~*
+*.pyc
