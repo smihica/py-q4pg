@@ -11,12 +11,12 @@ setup(
     url = "https://github.com/smihica/py-q4pg",
     download_url = "",
     keywords = ["db", "queue", "psql"],
-    requires = ['json', 'psycopg2'],
+    install_requires = ['psycopg2'],
     classifiers = [
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
         "Development Status :: 3 - Alpha",
-        "Environment :: Other Environment"
+        "Environment :: Other Environment",
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
