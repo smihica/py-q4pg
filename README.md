@@ -1,4 +1,4 @@
-### py-q4pg: A simple message queue using PostgreSQL in Python.
+### py-q4pg: A simple transactional message queue using PostgreSQL in Python.
 
 Lots of things are inspired from
  - http://d.hatena.ne.jp/n_shuyo/20090415/mq
@@ -7,6 +7,16 @@ Lots of things are inspired from
 __License: MIT__
 
 ### How to install py-q4pg
+
+##### From pip
+
+    $ pip install py-q4pg
+
+##### From easy_install
+
+    $ easy_install py-q4pg
+
+##### From source
 
     $ python ./setup.py install
 
