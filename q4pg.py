@@ -51,8 +51,8 @@ create table %s (
     id             serial          primary key,
     tag            varchar(31)     not null,
     content        varchar(%d),
-    except_times   integer         not null default 0,
     created_at     timestamp       not null default current_timestamp
+    except_times   integer         default 0,
 );
 create index %s_tag_idx         on %s(tag);
 create index %s_created_at_idx  on %s(created_at);

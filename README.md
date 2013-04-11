@@ -48,7 +48,7 @@ with q.dequeue('another-tag') as dq:
 ```python
 with q.dequeue_item('tag') as dq:
     print dq
-# => (1, 'tag', '{"the_data":"must_be"}', 0, datetime.datetime(...))
+# => (1, 'tag', '{"the_data":"must_be"}', datetime.datetime(...), 0)
 
 with q.dequeue('another-tag') as dq:
     print dq
@@ -58,8 +58,8 @@ with q.dequeue('another-tag') as dq:
 ##### show list
 ```python
 q.list('tag')
-# => [ (2, 'tag', '{"json":"serializable_data"}', 0, datetime.datetime(...)),
-#      (3, 'tag', '{"more":"data"}', 0, datetime.datetime(...)), ]
+# => [ (2, 'tag', '{"json":"serializable_data"}', datetime.datetime(...), 0),
+#      (3, 'tag', '{"more":"data"}', datetime.datetime(...), 0), ]
 ```
 
 ##### dequeue (guard)
@@ -76,9 +76,9 @@ with q.dequeue('tag') as dq:
 # => !!! Zero devision Error !!!
 
 q.list('tag')
-# => [ (3, 'tag', '{"more":"data"}', 0, datetime.datetime(...)),
-#      (2, 'tag', '{"json":"serializable_data"}', 1, datetime.datetime(...)), ] <= remained and push tail.
-#                                                ^^^ <= counted error time
+# => [ (3, 'tag', '{"more":"data"}', datetime.datetime(...), 0),
+#      (2, 'tag', '{"json":"serializable_data"}', datetime.datetime(...), 1), ] <= remained and push tail.
+#                                                                        ^^^    <= error counter is incremented.
 ```
 
 ##### dequeue (listen)
@@ -102,7 +102,7 @@ for i in q.listen('tag'):             # waiting for queue notification.
 ```python
 for i in q.listen_item('tag'):        # waiting for queue notification.
     print i
-# => (1, 'tag', {'foo', 'bar'}, 0, datetime.datetime(...))
+# => (1, 'tag', {'foo', 'bar'}, datetime.datetime(...), 0)
 ```
 
 ##### dequeue (immediate)
@@ -114,7 +114,7 @@ q.dequeue_immediate('tag')            # removed immediately, not transactional.
 ##### dequeue-item (immediate)
 ```python
 q.dequeue_item_immediate('tag')       # removed immediately, not transactional.
-# => (1, 'tag', {'json': 'serializable_data'}, 1, datetime.datetime(...))
+# => (1, 'tag', {'json': 'serializable_data'}, datetime.datetime(...), 1)
 ```
 
 ##### counting items
