@@ -60,7 +60,7 @@ with q.dequeue_item('tag') as dq:
     print dq
 # => (1, 'tag', '{"the_data":"must_be"}', datetime.datetime(...), 0)
 
-with q.dequeue('another-tag') as dq:
+with q.dequeue_item('another-tag') as dq:
     print dq
 # => None
 ```
