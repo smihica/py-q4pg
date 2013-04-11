@@ -4,21 +4,6 @@ import json
 import psycopg2
 import psycopg2.extensions
 
-@contextmanager
-def session(dsn):
-    conn = None
-    cur  = None
-    try:
-        conn = psycopg2.connect(dsn)
-        cur  = conn.cursor()
-        yield (conn, cur)
-    finally:
-        if cur:
-            cur.close()
-        if conn:
-            conn.close()
-
-
 LISTEN_TIMEOUT_SECONDS = 60 # 1min
 
 class QueueManager(object):
@@ -36,6 +21,28 @@ class QueueManager(object):
             self.serializer   = lambda d: json.dumps(d, separators=(',',':'))
             self.deserializer = lambda d: json.loads(d)
         self.setup_sqls()
+        self.invoking_queue_id = None
+
+    @contextmanager
+    def session(self):
+        conn = None
+        cur  = None
+        try:
+            conn = psycopg2.connect(self.dsn)
+            cur  = conn.cursor()
+            yield (conn, cur)
+        except:
+            if conn and cur and (self.invoking_queue_id != None):
+                cur.execute(self.report_sql, (self.invoking_queue_id,))
+                res = cur.fetchone()
+                if res and res[0]:
+                    conn.commit()
+            raise
+        finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
 
     def setup_sqls(self):
         n = self.table_name
@@ -44,6 +51,7 @@ create table %s (
     id             serial          primary key,
     tag            varchar(31)     not null,
     content        varchar(%d),
+    except_times   integer         not null default 0,
     created_at     timestamp       not null default current_timestamp
 );
 create index %s_tag_idx         on %s(tag);
@@ -54,6 +62,11 @@ drop table %s;
 """ % (n,)
         self.insert_sql = """
 insert into %s (tag, content) values (%%s, %%s);
+""" % (n,)
+        self.report_sql = """
+update %s set except_times = except_times + 1
+  where id = %%s and pg_try_advisory_lock(tableoid::int, id)
+  returning pg_advisory_unlock(tableoid::int, id);
 """ % (n,)
         self.select_sql = """
 select * from %s
@@ -84,12 +97,12 @@ listen %s;
 """
 
     def create_table(self):
-        with session(self.dsn) as (conn, cur):
+        with self.session() as (conn, cur):
             cur.execute(self.create_table_sql)
             conn.commit()
 
     def drop_table(self):
-        with session(self.dsn) as (conn, cur):
+        with self.session() as (conn, cur):
             cur.execute(self.drop_table_sql)
             conn.commit()
 
@@ -98,33 +111,46 @@ listen %s;
         self.create_table()
 
     def enqueue(self, tag, data):
-        with session(self.dsn) as (conn, cur):
+        with self.session() as (conn, cur):
             cur.execute((self.insert_sql + (self.notify_sql % (tag,))),
                         (tag, self.serializer(data),))
             conn.commit()
 
     @contextmanager
-    def dequeue(self, tag):
-        with session(self.dsn) as (conn, cur):
+    def dequeue_item(self, tag):
+        with self.session() as (conn, cur):
             cur.execute(self.select_sql, (tag,))
             res = cur.fetchone()
             if res:
-                yield self.deserializer(res[2])
+                self.invoking_queue_id = res[0]
+                yield res
                 cur.execute(self.ack_sql, (res[0],))
                 conn.commit()
+                self.invoking_queue_id = None
             else:
                 yield res
-            raise StopIteration()
+            return
 
-    def listen(self, tag):
+    @contextmanager
+    def dequeue(self, tag):
+        with self.dequeue_item(tag) as res:
+            if res:
+                yield self.deserializer(res[2])
+            else:
+                yield res
+            return
+
+    def listen_item(self, tag):
         while True:
-            with session(self.dsn) as (conn, cur):
+            with self.session() as (conn, cur):
                 cur.execute(self.select_sql, (tag,))
                 res = cur.fetchone()
                 if res:
-                    yield self.deserializer(res[2])
+                    self.invoking_queue_id = res[0]
+                    yield res
                     cur.execute(self.ack_sql, (res[0],))
                     conn.commit()
+                    self.invoking_queue_id = None
                     continue
                 conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
                 cur.execute((self.listen_sql % (tag,)))
@@ -136,12 +162,18 @@ listen %s;
                     cur.execute(self.select_sql, (tag,))
                     res = cur.fetchone()
                     if res:
-                        yield self.deserializer(res[2])
+                        self.invoking_queue_id = res[0]
+                        yield res
                         cur.execute(self.ack_sql, (res[0],))
                         conn.commit()
+                        self.invoking_queue_id = None
+
+    def listen(self, tag):
+        for d in self.listen_item(tag):
+            yield self.deserializer(d[2])
 
     def dequeue_immediate(self, tag):
-        with session(self.dsn) as (conn, cur):
+        with self.session() as (conn, cur):
             cur.execute(self.select_sql, (tag,))
             res = cur.fetchone()
             if res:
@@ -151,7 +183,7 @@ listen %s;
             return res
 
     def cancel(self, id):
-        with session(self.dsn) as (conn, cur):
+        with self.session() as (conn, cur):
             cur.execute(self.cancel_sql, (id,))
             res = cur.fetchone()
             if res and res[0]:
@@ -160,13 +192,13 @@ listen %s;
             return res[0] if res else False
 
     def list(self, tag):
-        with session(self.dsn) as (conn, cur):
+        with self.session() as (conn, cur):
             cur.execute(self.list_sql, (tag,))
             res = cur.fetchall()
             return res
 
     def count(self, tag):
-        with session(self.dsn) as (conn, cur):
+        with self.session() as (conn, cur):
             cur.execute(self.count_sql, (tag,))
             res = cur.fetchone()[0]
             return int(res)

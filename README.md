@@ -44,11 +44,22 @@ with q.dequeue('another-tag') as dq:
 # => None
 ```
 
+##### dequeue-line
+```python
+with q.dequeue_item('tag') as dq:
+    print dq
+# => (1, 'tag', '{"the_data":"must_be"}', 0, datetime.datetime(...))
+
+with q.dequeue('another-tag') as dq:
+    print dq
+# => None
+```
+
 ##### show list
 ```python
 q.list('tag')
-# => [ (2, 'tag', '{"json":"serializable_data"}', datetime.datetime(...)),
-#      (3, 'tag', '{"more":"data"}', datetime.datetime(...)), ]
+# => [ (2, 'tag', '{"json":"serializable_data"}', 0, datetime.datetime(...)),
+#      (3, 'tag', '{"more":"data"}', 0, datetime.datetime(...)), ]
 ```
 
 ##### dequeue (guard)
@@ -65,8 +76,9 @@ with q.dequeue('tag') as dq:
 # => !!! Zero devision Error !!!
 
 q.list('tag')
-# => [ (2, 'tag', '{"json":"serializable_data"}', datetime.datetime(...)),  # <= remained.
-#      (3, 'tag', '{"more":"data"}', datetime.datetime(...)), ]
+# => [ (3, 'tag', '{"more":"data"}', 0, datetime.datetime(...)),
+#      (2, 'tag', '{"json":"serializable_data"}', 1, datetime.datetime(...)), ] <= remained and push tail.
+#                                                ^^^ <= counted error time
 ```
 
 ##### dequeue (listen)
@@ -86,10 +98,23 @@ for i in q.listen('tag'):             # waiting for queue notification.
 # the queue is remained and can be gotten other runner or next time.
 ```
 
+##### dequeue-item (listen)
+```python
+for i in q.listen_item('tag'):        # waiting for queue notification.
+    print i
+# => (1, 'tag', {'foo', 'bar'}, 0, datetime.datetime(...))
+```
+
 ##### dequeue (immediate)
 ```python
 q.dequeue_immediate('tag')            # removed immediately, not transactional.
 # => {'json': 'serializable_data'}
+```
+
+##### dequeue-item (immediate)
+```python
+q.dequeue_item_immediate('tag')       # removed immediately, not transactional.
+# => (1, 'tag', {'json': 'serializable_data'}, 1, datetime.datetime(...))
 ```
 
 ##### counting items
