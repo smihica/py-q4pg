@@ -4,7 +4,7 @@ from distutils.core import setup, Extension
 setup(
     name = 'py-q4pg',
     py_modules = ['q4pg'],
-    version = '0.0.2',
+    version = '0.0.3',
     description = 'A simple message queue using PostgreSQL in Python.',
     author='Shin Aoyama',
     author_email = "smihica@gmail.com",
