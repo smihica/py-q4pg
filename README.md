@@ -25,7 +25,7 @@ __License: MIT__
 import q4pg
 
 q = q4pg.QueueManager(
-    dsn         = 'dbname=db1 user=user', # psycopg2's dsn argument. (default "")
+    dsn         = 'dbname=db1 user=user', # psycopg2's dsn argument. or db-url ("postgres://username:password@hostname:port/dbname")
     table_name  = 'mq',                   # name of the table to use. ("mq")
     data_type   = 'json',                 # stored data type : 'json' or 'text'. ("json")
     data_length = 1023)                   # data string max length. (1023)

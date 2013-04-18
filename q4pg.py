@@ -1,9 +1,8 @@
 from contextlib import contextmanager
-import select
-import json
-import psycopg2
+import select, json, re, psycopg2
 import psycopg2.extensions
 
+version = '0.0.3'
 LISTEN_TIMEOUT_SECONDS = 60 # 1min
 
 class QueueManager(object):
@@ -11,7 +10,7 @@ class QueueManager(object):
     def __init__(self,
                  dsn="", table_name="mq",
                  data_type="json", data_length=1023):
-        self.dsn          = dsn
+        self.parse_dsn(dsn)
         self.table_name   = table_name
         self.data_type    = data_type
         self.data_length  = data_length
@@ -22,6 +21,23 @@ class QueueManager(object):
             self.deserializer = lambda d: json.loads(d)
         self.setup_sqls()
         self.invoking_queue_id = None
+
+    def parse_dsn(self, dsn):
+        if dsn == "": # to use other session.
+            self.dsn = None
+        elif type(dsn) == str:
+            mat = re.match(r'^(.+)://(.+?)(?::(.*)|)@(.+?)(?::(.*?)|)/(.+)', dsn)
+            if mat: # is it url arg? (driver://username:password@hostname:port/dbname)
+                driver, username, password, hostname, port, dbname = map(lambda i: mat.group(i), xrange(1,7))
+                if not (driver in ('postgresql', 'postgres', 'psql', )):
+                    raise Exception("Invalid driver (%s). QueueManager supports only 'postgresql://'." % driver)
+                self.dsn = "user=%s host=%s dbname=%s" % (username, hostname, dbname, )
+                self.dsn += (" port=%s" % port if port else "")
+                self.dsn += (" password=%s" % password if password else "")
+            else:
+                self.dsn = dsn # psycopg2 arg.
+        else:
+            raise Exception("Invalid dsn argument given (%s)." % str(dsn))
 
     @contextmanager
     def session(self):
