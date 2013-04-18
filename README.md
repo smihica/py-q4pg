@@ -36,10 +36,8 @@ q = q4pg.QueueManager(
 #### Manipurations
 
 Each manipurations create a session object used for DB access iternal.
-And You can also give the session object.
-To do that, Give the session object to the last argument of each function.
-Expected session object is a tuple (db-connection, db-cursor).
-If you give your session object You must manage the connections in it.
+And You can also give the session object as the last argument of each function.
+If you give your session object You must commit() after enqueue / dequeue.
 
 ##### To create queue table
 ```python
@@ -129,8 +127,6 @@ for i in q.listen('tag'):             # waiting for queue notification.
 # listen() is also transactional.
 # So if you abort in the for loop,
 # the queue is remained and can be gotten other runner or next time.
-#
-# this also can use other session (optional).
 ```
 
 ##### dequeue-item (listen)
@@ -138,24 +134,32 @@ for i in q.listen('tag'):             # waiting for queue notification.
 for i in q.listen_item('tag'):        # waiting for queue notification.
     print i
 # => (1, 'tag', {'foo', 'bar'}, datetime.datetime(...), 0)
+#
+# this also can use other session (optional).
 ```
 
 ##### dequeue (immediate)
 ```python
 q.dequeue_immediate('tag')            # removed immediately, not transactional.
 # => {'json': 'serializable_data'}
+#
+# this also can use other session (optional).
 ```
 
 ##### dequeue-item (immediate)
 ```python
 q.dequeue_item_immediate('tag')       # removed immediately, not transactional.
 # => (1, 'tag', {'json': 'serializable_data'}, datetime.datetime(...), 1)
+#
+# this also can use other session (optional).
 ```
 
 ##### counting items
 ```python
 q.count('tag')
 # => 1                                # the number of remainder queue.
+#
+# this also can use other session (optional).
 ```
 
 ##### cancel
@@ -164,4 +168,6 @@ q.cancel(3)                           # specify id of queue.
 # => True                             # success.
 q.cancel(3)
 # => False                            # failed to cancel or not found the queue.
+#
+# this also can use other session (optional).
 ```
