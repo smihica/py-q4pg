@@ -40,25 +40,31 @@ class QueueManager(object):
             raise Exception("Invalid dsn argument given (%s)." % str(dsn))
 
     @contextmanager
-    def session(self):
+    def session(self, other_sess):
         conn = None
         cur  = None
-        try:
-            conn = psycopg2.connect(self.dsn)
-            cur  = conn.cursor()
+        if other_sess:
+            conn = other_sess[0]
+            cur  = other_sess[1]
             yield (conn, cur)
-        except:
-            if conn and cur and (self.invoking_queue_id != None):
-                cur.execute(self.report_sql, (self.invoking_queue_id,))
-                res = cur.fetchone()
-                if res and res[0]:
-                    conn.commit()
-            raise
-        finally:
-            if cur:
-                cur.close()
-            if conn:
-                conn.close()
+        else:
+            try:
+                conn = psycopg2.connect(self.dsn)
+                cur  = conn.cursor()
+                yield (conn, cur)
+            except:
+                if conn and cur and (self.invoking_queue_id != None):
+                    cur.execute(self.report_sql, (self.invoking_queue_id,))
+                    res = cur.fetchone()
+                    if res and res[0]:
+                        conn.commit()
+                raise
+            finally:
+                if cur:
+                    cur.close()
+                if conn:
+                    conn.close()
+        return
 
     def setup_sqls(self):
         n = self.table_name
@@ -112,29 +118,29 @@ notify %s;
 listen %s;
 """
 
-    def create_table(self):
-        with self.session() as (conn, cur):
+    def create_table(self, other_sess = None):
+        with self.session(other_sess) as (conn, cur):
             cur.execute(self.create_table_sql)
             conn.commit()
 
-    def drop_table(self):
-        with self.session() as (conn, cur):
+    def drop_table(self, other_sess = None):
+        with self.session(other_sess) as (conn, cur):
             cur.execute(self.drop_table_sql)
             conn.commit()
 
-    def reset_table(self):
-        self.drop_table()
-        self.create_table()
+    def reset_table(self, other_sess = None):
+        self.drop_table(other_sess)
+        self.create_table(other_sess)
 
-    def enqueue(self, tag, data):
-        with self.session() as (conn, cur):
-            cur.execute((self.insert_sql + (self.notify_sql % (tag,))),
+    def enqueue(self, tag, data, other_sess = None):
+        with self.session(other_sess) as (conn, cur):
+            cur.execute((self.insert_sql + (self.notify_sql % (tag,))) %
                         (tag, self.serializer(data),))
             conn.commit()
 
     @contextmanager
-    def dequeue_item(self, tag):
-        with self.session() as (conn, cur):
+    def dequeue_item(self, tag, other_sess = None):
+        with self.session(other_sess) as (conn, cur):
             cur.execute(self.select_sql, (tag,))
             res = cur.fetchone()
             if res:
@@ -148,17 +154,17 @@ listen %s;
             return
 
     @contextmanager
-    def dequeue(self, tag):
-        with self.dequeue_item(tag) as res:
+    def dequeue(self, tag, other_sess = None):
+        with self.dequeue_item(tag, other_sess) as res:
             if res:
                 yield self.deserializer(res[2])
             else:
                 yield res
             return
 
-    def listen_item(self, tag):
+    def listen_item(self, tag, other_sess = None):
         while True:
-            with self.session() as (conn, cur):
+            with self.session(other_sess) as (conn, cur):
                 cur.execute(self.select_sql, (tag,))
                 res = cur.fetchone()
                 if res:
@@ -184,12 +190,12 @@ listen %s;
                         conn.commit()
                         self.invoking_queue_id = None
 
-    def listen(self, tag):
-        for d in self.listen_item(tag):
+    def listen(self, tag, other_sess = None):
+        for d in self.listen_item(tag, other_sess):
             yield self.deserializer(d[2])
 
-    def dequeue_immediate(self, tag):
-        with self.session() as (conn, cur):
+    def dequeue_immediate(self, tag, other_sess = None):
+        with self.session(other_sess) as (conn, cur):
             cur.execute(self.select_sql, (tag,))
             res = cur.fetchone()
             if res:
@@ -198,8 +204,8 @@ listen %s;
                 return self.deserializer(res[2])
             return res
 
-    def cancel(self, id):
-        with self.session() as (conn, cur):
+    def cancel(self, id, other_sess = None):
+        with self.session(other_sess) as (conn, cur):
             cur.execute(self.cancel_sql, (id,))
             res = cur.fetchone()
             if res and res[0]:
@@ -207,14 +213,14 @@ listen %s;
                 return res[0]
             return res[0] if res else False
 
-    def list(self, tag):
-        with self.session() as (conn, cur):
+    def list(self, tag, other_sess = None):
+        with self.session(other_sess) as (conn, cur):
             cur.execute(self.list_sql, (tag,))
             res = cur.fetchall()
             return res
 
-    def count(self, tag):
-        with self.session() as (conn, cur):
+    def count(self, tag, other_sess = None):
+        with self.session(other_sess) as (conn, cur):
             cur.execute(self.count_sql, (tag,))
             res = cur.fetchone()[0]
             return int(res)

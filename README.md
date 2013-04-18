@@ -21,19 +21,31 @@ __License: MIT__
     $ python ./setup.py install
 
 ### Tutorial
+
+#### QueueManager
 ```python
 import q4pg
 
 q = q4pg.QueueManager(
-    dsn         = 'dbname=db1 user=user', # psycopg2's dsn argument. or db-url ("postgres://username:password@hostname:port/dbname")
+    dsn         = 'dbname=db1 user=user', # psycopg2's dsn argument. or db-url ("postgresql://username:password@hostname:port/dbname")
     table_name  = 'mq',                   # name of the table to use. ("mq")
     data_type   = 'json',                 # stored data type : 'json' or 'text'. ("json")
     data_length = 1023)                   # data string max length. (1023)
 ```
 
+#### Manipurations
+
+Each manipurations create a session object used for DB access iternal.
+And You can also give the session object.
+To do that, Give the session object to the last argument of each function.
+Expected session object is a tuple (db-connection, db-cursor).
+If you give your session object You must manage the connections in it.
+
 ##### To create queue table
 ```python
 q.create_table()
+###
+q.create_table(other_session) # create_table by using other session.
 ```
 
 ##### enqueue
@@ -41,6 +53,9 @@ q.create_table()
 q.enqueue('tag', {'the_data': 'must_be'})
 q.enqueue('tag', {'json': 'serializable_data'})
 q.enqueue('tag', {'more': 'data'})
+
+###
+q.enqueue('tag', {'the_data': 'must_be'}, other_session) # enqueue by using other session.
 ```
 
 ##### dequeue
@@ -52,6 +67,9 @@ with q.dequeue('tag') as dq:
 with q.dequeue('another-tag') as dq:
     print dq
 # => None
+
+###
+q.dequeue('tag', other_session) # dequeue by using other session.
 ```
 
 ##### dequeue-line
@@ -63,6 +81,8 @@ with q.dequeue_item('tag') as dq:
 with q.dequeue_item('another-tag') as dq:
     print dq
 # => None
+#
+# this also can use other session (optional).
 ```
 
 ##### show list
@@ -70,6 +90,8 @@ with q.dequeue_item('another-tag') as dq:
 q.list('tag')
 # => [ (2, 'tag', '{"json":"serializable_data"}', datetime.datetime(...), 0),
 #      (3, 'tag', '{"more":"data"}', datetime.datetime(...), 0), ]
+#
+# this also can use other session (optional).
 ```
 
 ##### dequeue (guard)
@@ -89,6 +111,7 @@ q.list('tag')
 # => [ (3, 'tag', '{"more":"data"}', datetime.datetime(...), 0),
 #      (2, 'tag', '{"json":"serializable_data"}', datetime.datetime(...), 1), ] <= remained and push tail.
 #                                                                        ^^^    <= error counter is incremented.
+# this also can use other session (optional).
 ```
 
 ##### dequeue (listen)
@@ -106,6 +129,8 @@ for i in q.listen('tag'):             # waiting for queue notification.
 # listen() is also transactional.
 # So if you abort in the for loop,
 # the queue is remained and can be gotten other runner or next time.
+#
+# this also can use other session (optional).
 ```
 
 ##### dequeue-item (listen)
