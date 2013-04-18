@@ -72,8 +72,8 @@ create table %s (
     id             serial          primary key,
     tag            varchar(31)     not null,
     content        varchar(%d),
-    created_at     timestamp       not null default current_timestamp
-    except_times   integer         default 0,
+    created_at     timestamp       not null default current_timestamp,
+    except_times   integer         default 0
 );
 create index %s_tag_idx         on %s(tag);
 create index %s_created_at_idx  on %s(created_at);
@@ -162,7 +162,7 @@ listen %s;
 
     def listen_item(self, tag):
         while True:
-            with self.session() as (conn, cur):
+            with self.session(None) as (conn, cur):
                 cur.execute(self.select_sql % (tag,))
                 res = cur.fetchone()
                 if res:

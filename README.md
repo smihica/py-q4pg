@@ -92,7 +92,7 @@ q.list('tag')
 # this also can use other session (optional).
 ```
 
-##### dequeue (guard)
+##### dequeue (transactional)
 ```python
 # dequeue() is transactional.
 # if you abort in the with statement,
