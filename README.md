@@ -27,10 +27,12 @@ __License: MIT__
 import q4pg
 
 q = q4pg.QueueManager(
-    dsn         = 'dbname=db1 user=user', # psycopg2's dsn argument. or db-url ("postgresql://username:password@hostname:port/dbname")
-    table_name  = 'mq',                   # name of the table to use. ("mq")
-    data_type   = 'json',                 # stored data type : 'json' or 'text'. ("json")
-    data_length = 1023)                   # data string max length. (1023)
+    dsn                      = 'dbname=db1 user=user', # psycopg2's dsn argument. or db-url ("postgresql://username:password@hostname:port/dbname")
+    table_name               = 'mq',                   # name of the table to use. (default "mq")
+    data_type                = 'json',                 # stored data type : 'json' or 'text'. (default "json")
+    data_length              = 1023,                   # data string max length. (default 1023)
+    excepted_times_to_ignore = 0)                      # The queue excepted more than this times will be ignored
+                                                       # or set 0 to not ignore any queue. (default 0)
 ```
 
 #### Manipurations

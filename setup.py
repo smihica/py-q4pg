@@ -4,8 +4,8 @@ from distutils.core import setup, Extension
 setup(
     name = 'py-q4pg',
     py_modules = ['q4pg'],
-    version = '0.0.3',
-    description = 'A simple message queue using PostgreSQL in Python.',
+    version = '0.0.4',
+    description = 'A simple transactional message queue using PostgreSQL in Python.',
     author='Shin Aoyama',
     author_email = "smihica@gmail.com",
     url = "https://github.com/smihica/py-q4pg",
@@ -15,7 +15,7 @@ setup(
     classifiers = [
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 4 - Beta",
         "Environment :: Other Environment",
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
@@ -25,6 +25,6 @@ setup(
         "Topic :: Software Development :: Libraries :: Python Modules",
         ],
     long_description = """\
-A simple message queue using PostgreSQL in Python.
+A simple transactional message queue using PostgreSQL in Python.
 """,
     )
