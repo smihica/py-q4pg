@@ -9,13 +9,16 @@ class QueueManager(object):
 
     def __init__(self,
                  dsn="", table_name="mq",
-                 data_type="json", data_length=1023):
+                 data_type="json",
+                 data_length=1023,
+                 excepted_times_to_ignore=0):
         self.parse_dsn(dsn)
         self.table_name   = table_name
         self.data_type    = data_type
         self.data_length  = data_length
         self.serializer   = lambda d: d
         self.deserializer = lambda d: d
+        self.excepted_times_to_ignore = excepted_times_to_ignore
         if data_type is "json":
             self.serializer   = lambda d: json.dumps(d, separators=(',',':'))
             self.deserializer = lambda d: json.loads(d)
@@ -143,7 +146,11 @@ listen %s;
             res = cur.fetchone()
             if res:
                 self.invoking_queue_id = res[0]
-                yield res
+                if ((0 < self.excepted_times_to_ignore) and
+                    (self.excepted_times_to_ignore <= int(res[4]))):
+                    yield None
+                else:
+                    yield res
                 cur.execute(self.ack_sql % (res[0],))
                 if conn: conn.commit()
                 self.invoking_queue_id = None
@@ -167,7 +174,9 @@ listen %s;
                 res = cur.fetchone()
                 if res:
                     self.invoking_queue_id = res[0]
-                    yield res
+                    if not ((0 < self.excepted_times_to_ignore) and
+                            (self.excepted_times_to_ignore <= int(res[4]))):
+                        yield res
                     cur.execute(self.ack_sql % (res[0],))
                     conn.commit()
                     self.invoking_queue_id = None
@@ -183,7 +192,9 @@ listen %s;
                     res = cur.fetchone()
                     if res:
                         self.invoking_queue_id = res[0]
-                        yield res
+                        if not ((0 < self.excepted_times_to_ignore) and
+                                (self.excepted_times_to_ignore <= int(res[4]))):
+                            yield res
                         cur.execute(self.ack_sql % (res[0],))
                         conn.commit()
                         self.invoking_queue_id = None

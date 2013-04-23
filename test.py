@@ -113,6 +113,63 @@ def cancel():
     else:
         print 'OK cancel 1'
 
+def excepted_times_to_ignore():
+    q.excepted_times_to_ignore = 2
+    q.enqueue('tag', {'err': 'data1'})
+    if (q.count('tag') == 1):
+        try:
+            with q.dequeue('tag') as dq:
+                x = ( 1 / 0 )              # <= Error 1
+        except:
+            pass
+        if (q.list('tag')[0][4] == 1):
+            try:
+                with q.dequeue('tag') as dq:
+                    x = ( 1 / 0 )          # <= Error 2
+            except:
+                pass
+            if (q.list('tag')[0][4] == 2):
+                try:
+                    with q.dequeue('tag') as dq:
+                        if (dq == None):
+                            print 'OK excepted_times_to_ignore 1'
+                            return
+                except:
+                    pass
+    raise Exception("failed excepted_times_to_ignore 1")
+
+
+def excepted_times_to_ignore_listen():
+    q.excepted_times_to_ignore = 2
+    q.enqueue('tag', {'err': 'data1'})
+    err = False
+    if (q.count('tag') == 1):
+        try:
+            for dq in q.listen_item('tag'):
+                x = ( 1 / 0 )            # <= Error 1
+        except:
+            pass
+        if (q.list('tag')[0][4] == 1):
+            try:
+                for dq in q.listen_item('tag'):
+                    x = ( 1 / 0 )        # <= Error 2
+            except:
+                pass
+            if (q.list('tag')[0][4] == 2):
+                q.enqueue('tag', {'err': 'data2'})
+                try:
+                    for dq in q.listen_item('tag'):
+                        err = (dq[2] != '{"err":"data2"}')
+                        break;
+                except:
+                    pass
+    if err or (q.count('tag') != 1):
+        raise Exception("failed excepted_times_to_ignore_listen 1")
+    else:
+        print 'OK excepted_times_to_ignore_listen 1'
+
+
+
 def main():
     global q
     dsn = None
@@ -132,6 +189,8 @@ def main():
         dequeue_item_listen()
         count_item()
         cancel()
+        excepted_times_to_ignore()
+        excepted_times_to_ignore_listen()
     except:
         raise
     finally:
