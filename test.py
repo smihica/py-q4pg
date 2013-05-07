@@ -191,6 +191,27 @@ def dequeue_and_listen_item_timeout():
         print 'OK dequeue_and_listen_item_timeout 2'
 
 
+def dequeue_transaction_none():
+    idt = "test-exception"
+    q.excepted_times_to_ignore = 1
+    q.enqueue('tag', {'test':'test'})
+    try:
+        with q.dequeue('tag') as dq:
+            x = ( 1 / 0 )                     # <= Error
+    except:
+        pass
+    #queue is ignored dequeue will return None.
+    try:
+        with q.dequeue('tag') as dq:
+            if dq == None:
+                raise Exception(idt)
+    except Exception as e:
+        if str(e) == idt and q.list('tag')[0][4] <= 1:
+            print 'OK dequeue_transaction_none 2'
+        else:
+            raise Exception("failed dequeue_transaction_none 2")
+
+
 def main():
     global q
     dsn = None
@@ -213,6 +234,7 @@ def main():
         excepted_times_to_ignore()
         excepted_times_to_ignore_listen()
         dequeue_and_listen_item_timeout()
+        dequeue_transaction_none()
     except:
         raise
     finally:

@@ -147,6 +147,7 @@ listen %s;
                 self.invoking_queue_id = res[0]
                 if ((0 < self.excepted_times_to_ignore) and
                     (self.excepted_times_to_ignore <= int(res[4]))):
+                    self.invoking_queue_id = None  # to ignore error reporting.
                     yield None
                 else:
                     yield res
@@ -183,7 +184,9 @@ listen %s;
                 conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
                 cur.execute((self.listen_sql % (tag,)))
                 if select.select([conn],[],[],(timeout or LISTEN_TIMEOUT_SECONDS)) == ([],[],[]):
-                    if timeout: yield None
+                    if timeout:
+                        self.invoking_queue_id = None # to ignore error reporting.
+                        yield None
                     continue
                 conn.poll()
                 if conn.notifies:
