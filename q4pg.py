@@ -2,7 +2,6 @@ from contextlib import contextmanager
 import select, json, re, psycopg2
 import psycopg2.extensions
 
-version = '0.0.3'
 LISTEN_TIMEOUT_SECONDS = 60 # 1min
 
 class QueueManager(object):
@@ -167,7 +166,7 @@ listen %s;
                 yield res
             return
 
-    def listen_item(self, tag):
+    def listen_item(self, tag, timeout=None):
         while True:
             with self.session(None) as (conn, cur):
                 cur.execute(self.select_sql % (tag,))
@@ -183,7 +182,8 @@ listen %s;
                     continue
                 conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
                 cur.execute((self.listen_sql % (tag,)))
-                if select.select([conn],[],[],LISTEN_TIMEOUT_SECONDS) == ([],[],[]):
+                if select.select([conn],[],[],(timeout or LISTEN_TIMEOUT_SECONDS)) == ([],[],[]):
+                    if timeout: yield None
                     continue
                 conn.poll()
                 if conn.notifies:
@@ -199,9 +199,9 @@ listen %s;
                         conn.commit()
                         self.invoking_queue_id = None
 
-    def listen(self, tag):
-        for d in self.listen_item(tag):
-            yield self.deserializer(d[2])
+    def listen(self, tag, timeout=None):
+        for d in self.listen_item(tag, timeout=timeout):
+            yield (self.deserializer(d[2]) if d != None else None)
 
     def dequeue_immediate(self, tag, other_sess = None):
         with self.session(other_sess) as (conn, cur):

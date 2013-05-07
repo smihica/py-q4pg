@@ -169,6 +169,27 @@ def excepted_times_to_ignore_listen():
         print 'OK excepted_times_to_ignore_listen 1'
 
 
+def dequeue_and_listen_item_timeout():
+    err = False
+    with q.dequeue('tag') as dq:
+        err = (dq != {u'err': u'data2'})
+    if err:
+        raise Exception("failed dequeue_and_listen_item_timeout 1")
+    else:
+        print 'OK dequeue_and_listen_item_timeout 1'
+
+    before = datetime.datetime.now()
+    for itm in q.listen_item('tag', timeout=1):
+        after = datetime.datetime.now()
+        delta = after - before
+        span = (delta.seconds + (delta.microseconds / 1000000.0))
+        err = not (itm == None and 0.95 < span and span < 1.05)
+        break
+    if err:
+        raise Exception("failed dequeue_and_listen_item_timeout 2")
+    else:
+        print 'OK dequeue_and_listen_item_timeout 2'
+
 
 def main():
     global q
@@ -191,6 +212,7 @@ def main():
         cancel()
         excepted_times_to_ignore()
         excepted_times_to_ignore_listen()
+        dequeue_and_listen_item_timeout()
     except:
         raise
     finally:

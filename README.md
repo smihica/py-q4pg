@@ -140,6 +140,13 @@ for i in q.listen_item('tag'):        # waiting for queue notification.
 # this also can use other session (optional).
 ```
 
+##### dequeue and dequeue-item (listen with timeout)
+```python
+for i in q.listen('tag', timeout=1):  # if timeout (sec) is specified and expired it then returns None. listen_item() is also usable this.
+    print i
+# => None # if timeouted. (1 second past without enqueue)
+```
+
 ##### dequeue (immediate)
 ```python
 q.dequeue_immediate('tag')            # removed immediately, not transactional.
