@@ -133,13 +133,23 @@ listen %s;
         self.drop_table(other_sess)
         self.create_table(other_sess)
 
+    def sanitize(self, string):
+        return string.replace("'", "''")
+
+    def check_tag(self, tag):
+        if "'" in tag:
+            raise ValueError("Invalid tag-name. tag-name must not have \"'\".")
+        return tag
+
     def enqueue(self, tag, data, other_sess = None):
+        tag, data = (self.check_tag(tag), self.sanitize(self.serializer(data)), )
         with self.session(other_sess) as (conn, cur):
-            cur.execute((self.insert_sql + (self.notify_sql % (tag,))) % (tag, self.serializer(data),))
+            cur.execute((self.insert_sql + (self.notify_sql % (tag,))) % (tag, data))
             if conn: conn.commit()
 
     @contextmanager
     def dequeue_item(self, tag, other_sess = None):
+        tag = self.check_tag(tag)
         with self.session(other_sess) as (conn, cur):
             cur.execute(self.select_sql % (tag,))
             res = cur.fetchone()
@@ -168,6 +178,7 @@ listen %s;
             return
 
     def listen_item(self, tag, timeout=None):
+        tag = self.check_tag(tag)
         while True:
             with self.session(None) as (conn, cur):
                 cur.execute(self.select_sql % (tag,))
@@ -207,6 +218,7 @@ listen %s;
             yield (self.deserializer(d[2]) if d != None else None)
 
     def dequeue_immediate(self, tag, other_sess = None):
+        tag = self.check_tag(tag)
         with self.session(other_sess) as (conn, cur):
             cur.execute(self.select_sql % (tag,))
             res = cur.fetchone()
@@ -226,12 +238,14 @@ listen %s;
             return res[0] if res else False
 
     def list(self, tag, other_sess = None):
+        tag = self.check_tag(tag)
         with self.session(other_sess) as (conn, cur):
             cur.execute(self.list_sql % (tag,))
             res = cur.fetchall()
             return res
 
     def count(self, tag, other_sess = None):
+        tag = self.check_tag(tag)
         with self.session(other_sess) as (conn, cur):
             cur.execute(self.count_sql % (tag,))
             res = cur.fetchone()[0]

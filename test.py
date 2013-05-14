@@ -211,6 +211,21 @@ def dequeue_transaction_none():
         else:
             raise Exception("failed dequeue_transaction_none 2")
 
+def dangerous_data_sanitizing():
+    try:
+        q.enqueue("that's", {})
+    except ValueError as e:
+        if str(e) == "Invalid tag-name. tag-name must not have \"'\".":
+            print 'OK dangerous_data_sanitizing 1'
+        else:
+            raise Exception("failed dangerous_data_sanitizing 1")
+    data = {"'ah''basjd''f'f'kk'''a'ha": "uuu'xxx"}
+    q.enqueue("thats", data)
+    dq = q.dequeue_immediate("thats")
+    if (dq == data):
+        print 'OK dangerous_data_sanitizing 2'
+    else:
+        raise Exception("failed dangerous_data_sanitizing 1")
 
 def main():
     global q
@@ -235,6 +250,7 @@ def main():
         excepted_times_to_ignore_listen()
         dequeue_and_listen_item_timeout()
         dequeue_transaction_none()
+        dangerous_data_sanitizing()
     except:
         raise
     finally:
