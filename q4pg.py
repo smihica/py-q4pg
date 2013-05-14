@@ -211,7 +211,7 @@ listen %s;
                     conn.commit()
                     self.invoking_queue_id = None
                     continue
-                # conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+                conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
                 cur.execute((self.listen_sql % (tag,)))
                 if select.select([conn],[],[],interval) == ([],[],[]):
                     if timeout and (timeout <= get_timespan(wait_start)):
