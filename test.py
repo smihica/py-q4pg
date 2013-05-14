@@ -19,15 +19,21 @@ def drop_table():
     q.drop_table()
 
 def enqueue():
-    q.enqueue('tag', {'the_data': 'must_be'})
-    q.enqueue('tag', {'json': 'serializable_data'})
-    q.enqueue('tag', {'more': 'data'})
-    q.enqueue('tag', {'more': 'data2'})
-    q.enqueue('tag', {'more': 'data3'})
+    _0 = q.enqueue('tag', {'the_data': 'must_be'})
+    _1 = q.enqueue('tag', {'json': 'serializable_data'})
+    _2 = q.enqueue('tag', {'more': 'data'})
+    _3 = q.enqueue('tag', {'more': 'data2'})
+    _4 = q.enqueue('tag', {'more': 'data3'})
     if len(q.list('tag')) != 5:
         raise Exception("failed enqueue 1")
     else:
         print 'OK enqueue 1'
+    # checking id
+    ids = [_0, _1, _2, _3, _4]
+    if ids != list(range(1, 6)):
+        raise Exception("failed enqueue 2")
+    else:
+        print 'OK enqueue 2'
 
 def dequeue():
     with q.dequeue('tag') as dq:
