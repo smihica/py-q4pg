@@ -2,9 +2,9 @@ from contextlib import contextmanager
 import select, json, re, psycopg2
 import psycopg2.extensions
 
-LISTEN_TIMEOUT_SECONDS = 60 # 1min
-
 class QueueManager(object):
+
+    LISTEN_TIMEOUT_INTERVAL_SECONDS = 1 # second
 
     def __init__(self,
                  dsn="", table_name="mq",
@@ -75,16 +75,18 @@ create table %s (
     tag            varchar(31)     not null,
     content        varchar(%d),
     created_at     timestamp       not null default current_timestamp,
-    except_times   integer         default 0
+    except_times   integer         default 0,
+    schedule       timestamp
 );
 create index %s_tag_idx         on %s(tag);
 create index %s_created_at_idx  on %s(created_at);
-""" % (n, self.data_length, n, n, n, n,)
+create index %s_schedule        on %s(schedule);
+""" % (n, self.data_length, n, n, n, n, n, n)
         self.drop_table_sql = """
 drop table %s;
 """ % (n,)
         self.insert_sql = """
-insert into %s (tag, content) values ('%%s', '%%s');
+insert into %s (tag, content, schedule) values ('%%s', '%%s', %%s);
 """ % (n,)
         self.report_sql = """
 update %s set except_times = except_times + 1
@@ -93,16 +95,20 @@ update %s set except_times = except_times + 1
 """ % (n,)
         self.select_sql = """
 select * from %s
-  where case when tag = '%%s' then pg_try_advisory_lock(tableoid::int, id) else false end
+  where case
+    when (tag = '%%s' and (schedule is null or schedule <= current_timestamp))
+    then pg_try_advisory_lock(tableoid::int, id)
+    else false
+  end
   limit 1;
 """ % (n,)
         self.list_sql = """
 select * from %s
-  where case when tag = '%%s' then pg_try_advisory_lock(tableoid::int, id) else false end;
+  where case when (tag = '%%s'%%s) then pg_try_advisory_lock(tableoid::int, id) else false end;
 """ % (n,)
         self.count_sql = """
 select count(*) from %s
-  where case when tag = '%%s' then pg_try_advisory_lock(tableoid::int, id) else false end;
+  where case when (tag = '%%s'%%s) then pg_try_advisory_lock(tableoid::int, id) else false end;
 """ % (n,)
         self.cancel_sql = """
 delete from %s where id = %%s and pg_try_advisory_lock(tableoid::int, id)
@@ -138,13 +144,15 @@ listen %s;
 
     def check_tag(self, tag):
         if "'" in tag:
-            raise ValueError("Invalid tag-name. tag-name must not have \"'\".")
+            raise ValueError("Invalid tag-name. invalid char \"'\" is in tag-name.")
         return tag
 
-    def enqueue(self, tag, data, other_sess = None):
+    def enqueue(self, tag, data, other_sess = None, schedule = None):
         tag, data = (self.check_tag(tag), self.sanitize(self.serializer(data)), )
         with self.session(other_sess) as (conn, cur):
-            cur.execute((self.insert_sql + (self.notify_sql % (tag,))) % (tag, data))
+            cur.execute((self.insert_sql + (self.notify_sql % (tag,))) % (
+                    tag, data,
+                    schedule.strftime('timestamp \'%Y-%m-%d %H:%M:%S\'') if schedule else 'NULL'))
             if conn: conn.commit()
 
     @contextmanager
@@ -178,7 +186,9 @@ listen %s;
             return
 
     def listen_item(self, tag, timeout=None):
-        tag = self.check_tag(tag)
+        tag         = self.check_tag(tag)
+        waiting_sec = 0
+        interval    = self.LISTEN_TIMEOUT_INTERVAL_SECONDS
         while True:
             with self.session(None) as (conn, cur):
                 cur.execute(self.select_sql % (tag,))
@@ -187,16 +197,19 @@ listen %s;
                     self.invoking_queue_id = res[0]
                     if not ((0 < self.excepted_times_to_ignore) and
                             (self.excepted_times_to_ignore <= int(res[4]))):
+                        waiting_sec = 0
                         yield res
                     cur.execute(self.ack_sql % (res[0],))
                     conn.commit()
                     self.invoking_queue_id = None
                     continue
-                conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+                # conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
                 cur.execute((self.listen_sql % (tag,)))
-                if select.select([conn],[],[],(timeout or LISTEN_TIMEOUT_SECONDS)) == ([],[],[]):
-                    if timeout:
+                if select.select([conn],[],[],interval) == ([],[],[]):
+                    waiting_sec += interval
+                    if timeout and (timeout <= waiting_sec):
                         self.invoking_queue_id = None # to ignore error reporting.
+                        waiting_sec = 0
                         yield None
                     continue
                 conn.poll()
@@ -208,6 +221,7 @@ listen %s;
                         self.invoking_queue_id = res[0]
                         if not ((0 < self.excepted_times_to_ignore) and
                                 (self.excepted_times_to_ignore <= int(res[4]))):
+                            waiting_sec = 0
                             yield res
                         cur.execute(self.ack_sql % (res[0],))
                         conn.commit()
@@ -237,16 +251,18 @@ listen %s;
                 return res[0]
             return res[0] if res else False
 
-    def list(self, tag, other_sess = None):
+    def list(self, tag, other_sess = None, ignore_scheduled = True):
         tag = self.check_tag(tag)
+        schedule = (" and (schedule is null or schedule <= current_timestamp)" if ignore_scheduled else "")
         with self.session(other_sess) as (conn, cur):
-            cur.execute(self.list_sql % (tag,))
+            cur.execute(self.list_sql % (tag, schedule, ))
             res = cur.fetchall()
             return res
 
-    def count(self, tag, other_sess = None):
+    def count(self, tag, other_sess = None, ignore_scheduled = True):
         tag = self.check_tag(tag)
+        schedule = (" and (schedule is null or schedule <= current_timestamp)" if ignore_scheduled else "")
         with self.session(other_sess) as (conn, cur):
-            cur.execute(self.count_sql % (tag,))
+            cur.execute(self.count_sql % (tag, schedule, ))
             res = cur.fetchone()[0]
             return int(res)

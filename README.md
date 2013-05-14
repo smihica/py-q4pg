@@ -76,7 +76,7 @@ q.dequeue('tag', other_session) # dequeue by using other session.
 ```python
 with q.dequeue_item('tag') as dq:
     print dq
-# => (1, 'tag', '{"the_data":"must_be"}', datetime.datetime(...), 0)
+# => (1, 'tag', '{"the_data":"must_be"}', datetime.datetime(...), 0, None)
 
 with q.dequeue_item('another-tag') as dq:
     print dq
@@ -161,6 +161,21 @@ q.dequeue_item_immediate('tag')       # removed immediately, not transactional.
 # => (1, 'tag', {'json': 'serializable_data'}, datetime.datetime(...), 1)
 #
 # this also can use other session (optional).
+```
+
+##### enqueue (scheduling)
+```python
+import time
+from datetime import datetime, timedelta
+
+schedule = datetime.now() + timedelta(0, 1) # delay 1 second
+q.enqueue('tag', {'the_data': 'delay 1 second'})
+q.dequeue_immediate('tag') # => None
+time.sleep(1) # sleep 1 second
+q.dequeue_immediate('tag') # => {'the_data': 'delay 1 second'}
+
+# scheduling max accuracy is 1 second.
+# MICROSECONDS ACCURACY IS NOT SUPPORTED.
 ```
 
 ##### counting items

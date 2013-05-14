@@ -1,10 +1,16 @@
 #!/usr/bin/env python
-import sys, q4pg, datetime
+import sys, q4pg, time
+from datetime import datetime, timedelta
 
 q = None
 
+def getspan(before):
+    after = datetime.now()
+    delta = after - before
+    return (delta.seconds + (delta.microseconds / 1000000.0))
+
 def gettable():
-    return 'test_table_%s' % str(datetime.datetime.now().microsecond).replace(' ', '')
+    return 'test_table_%s' % str(datetime.now().microsecond).replace(' ', '')
 
 def create_table():
     q.create_table()
@@ -178,12 +184,13 @@ def dequeue_and_listen_item_timeout():
     else:
         print 'OK dequeue_and_listen_item_timeout 1'
 
-    before = datetime.datetime.now()
-    for itm in q.listen_item('tag', timeout=1):
-        after = datetime.datetime.now()
-        delta = after - before
-        span = (delta.seconds + (delta.microseconds / 1000000.0))
-        err = not (itm == None and 0.95 < span and span < 1.05)
+    timeout_sec = 3
+    before = datetime.now()
+    for itm in q.listen_item('tag', timeout=timeout_sec):
+        span = getspan(before)
+        err = not (itm == None and
+                   (timeout_sec - 0.05) < span and
+                   span < (timeout_sec + 0.05))
         break
     if err:
         raise Exception("failed dequeue_and_listen_item_timeout 2")
@@ -213,9 +220,9 @@ def dequeue_transaction_none():
 
 def dangerous_data_sanitizing():
     try:
-        q.enqueue("that's", {})
+        q.enqueue("I'm", {})
     except ValueError as e:
-        if str(e) == "Invalid tag-name. tag-name must not have \"'\".":
+        if str(e) == "Invalid tag-name. invalid char \"'\" is in tag-name.":
             print 'OK dangerous_data_sanitizing 1'
         else:
             raise Exception("failed dangerous_data_sanitizing 1")
@@ -226,6 +233,114 @@ def dangerous_data_sanitizing():
         print 'OK dangerous_data_sanitizing 2'
     else:
         raise Exception("failed dangerous_data_sanitizing 1")
+
+def wait_until_convenient():
+    while True:
+        now = datetime.now()
+        if now.microsecond < 100: break;
+        time.sleep(50/1000000.0)
+
+def scheduling():
+    # basic.
+    wait_until_convenient()
+    now = datetime.now()
+    s = now + timedelta(0, 2) # after 2 sec
+    q.enqueue("scheduling", {'test': 'wait-2s'}, schedule = s)
+    dq = q.dequeue_immediate("scheduling")
+    if dq: raise Exception("failed scheduling 1")
+    time.sleep(1)
+    dq = q.dequeue_immediate("scheduling")
+    if dq: raise Exception("failed scheduling 2")
+    time.sleep(1.05)
+    dq = q.dequeue_immediate("scheduling")
+    if dq:
+        print 'OK scheduling 1'
+    else:
+        raise Exception("failed scheduling 3")
+    # checking listen and order.
+    wait_until_convenient()
+    now = datetime.now()
+    s = now + timedelta(0, 2) # after 2 sec
+    src = [{'order': i} for i in xrange(10)]
+    for i in src: q.enqueue("scheduling", i, schedule = s)
+    res = []
+    before = datetime.now()
+    for dq in q.listen("scheduling"):
+        if len(res) == 0:
+            span = getspan(before)
+            if (span < 1.90 or 2.1 < span):
+                raise Exception("failed scheduling 4 ideal: 2, span:" + str(span))
+        res.append(dq)
+        if (len(res) == len(src)): break
+    if (src == res):
+        print 'OK scheduling 2'
+    else:
+        raise Exception("failed scheduling 5")
+    # checking preserving order when varied scheduled queue post in varied timing.
+    wait_until_convenient()
+    _0 = [{'order': 0},  {'order': 1},  {'order': 2}]
+    _1 = [{'order': 3},  {'order': 4},  {'order': 5}]
+    _2 = [{'order': 6},  {'order': 7},  {'order': 8}]
+    _3 = [{'order': 9},  {'order': 10}, {'order': 11}]
+    _4 = [{'order': 12}, {'order': 13}, {'order': 14}]
+    res = []
+    now = datetime.now()
+    s = now + timedelta(0, 3) # after 2 sec
+    for i in _3: q.enqueue("scheduling", i, schedule = s)
+    s = now + timedelta(0, 1)
+    for i in _0: q.enqueue("scheduling", i, schedule = s)
+    before = datetime.now()
+    for dq in q.listen("scheduling"):
+        res.append([dq, getspan(before)])
+        if (len(res) == len(_0)):
+            s = datetime.now() + timedelta(0, 1)
+            for i in _2: q.enqueue("scheduling", i, schedule = s)
+            for i in _1: q.enqueue("scheduling", i)
+            break
+    for dq in q.listen("scheduling"):
+        res.append([dq, getspan(before)])
+        if (len(res) == (len(_0) * 2)):
+            break
+    for dq in q.listen("scheduling"):
+        res.append([dq, getspan(before)])
+        if (len(res) == (len(_0) * 3)):
+            s = datetime.now() + timedelta(0, 2)
+            for i in _4: q.enqueue("scheduling", i, schedule = s)
+            break
+    for dq in q.listen("scheduling"):
+        res.append([dq, getspan(before)])
+        if (len(res) == (len(_0) * 5)):
+            break
+
+    i = 0
+    for s, r in zip((_0 + _1 + _2 + _3 + _4), res):
+        if s != r[0]:
+            raise Exception("failed scheduling 6 " + str(s) + ", " + str(r) + ", " + str(res))
+        span = r[1]
+        ideal = (1 if i < 6 else (i / 3))
+        if span < (ideal - 0.3) or (ideal + 0.3) < span:
+            raise Exception("failed scheduling 7 " + str(ideal) + ", " + str(r) + ", " + str(res))
+        i+=1
+    print 'OK scheduling 3'
+    while True:
+        i = q.dequeue_immediate("scheduling")
+        if i == None: break
+    # check list count
+    now = datetime.now()
+    s = now + timedelta(0, 1) # after 1 sec
+    for i in _0: q.enqueue("scheduling", i, schedule = s)
+    if (q.count("scheduling") > 0 or
+        len(q.list("scheduling")) > 0):
+        raise Exception("failed scheduling 8.")
+    if (q.count("scheduling", ignore_scheduled = False) < 1 or
+        len(q.list("scheduling", ignore_scheduled = False)) < 1):
+        raise Exception("failed scheduling 9.")
+    time.sleep(1)
+    if (q.count("scheduling") < 1 or
+        len(q.list("scheduling")) < 1):
+        raise Exception("failed scheduling 10.")
+    print 'OK scheduling 4'
+
 
 def main():
     global q
@@ -251,6 +366,7 @@ def main():
         dequeue_and_listen_item_timeout()
         dequeue_transaction_none()
         dangerous_data_sanitizing()
+        scheduling()
     except:
         raise
     finally:
