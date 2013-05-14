@@ -1,6 +1,11 @@
 from contextlib import contextmanager
+from datetime import datetime
 import select, json, re, psycopg2
 import psycopg2.extensions
+
+def get_timespan(start):
+    delta = (datetime.now() - start)
+    return ((delta.days * 86400) + delta.seconds + (delta.microseconds / 1000000.0))
 
 class QueueManager(object):
 
@@ -187,7 +192,7 @@ listen %s;
 
     def listen_item(self, tag, timeout=None):
         tag         = self.check_tag(tag)
-        waiting_sec = 0
+        wait_start  = datetime.now()
         interval    = self.LISTEN_TIMEOUT_INTERVAL_SECONDS
         while True:
             with self.session(None) as (conn, cur):
@@ -197,8 +202,8 @@ listen %s;
                     self.invoking_queue_id = res[0]
                     if not ((0 < self.excepted_times_to_ignore) and
                             (self.excepted_times_to_ignore <= int(res[4]))):
-                        waiting_sec = 0
                         yield res
+                        wait_start = datetime.now()
                     cur.execute(self.ack_sql % (res[0],))
                     conn.commit()
                     self.invoking_queue_id = None
@@ -206,11 +211,10 @@ listen %s;
                 # conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
                 cur.execute((self.listen_sql % (tag,)))
                 if select.select([conn],[],[],interval) == ([],[],[]):
-                    waiting_sec += interval
-                    if timeout and (timeout <= waiting_sec):
+                    if timeout and (timeout <= get_timespan(wait_start)):
                         self.invoking_queue_id = None # to ignore error reporting.
-                        waiting_sec = 0
                         yield None
+                        wait_start = datetime.now()
                     continue
                 conn.poll()
                 if conn.notifies:
@@ -221,8 +225,8 @@ listen %s;
                         self.invoking_queue_id = res[0]
                         if not ((0 < self.excepted_times_to_ignore) and
                                 (self.excepted_times_to_ignore <= int(res[4]))):
-                            waiting_sec = 0
                             yield res
+                            wait_start = datetime.now()
                         cur.execute(self.ack_sql % (res[0],))
                         conn.commit()
                         self.invoking_queue_id = None
