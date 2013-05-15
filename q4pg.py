@@ -46,21 +46,15 @@ class QueueManager(object):
         else:
             raise Exception("Invalid dsn argument given (%s)." % str(dsn))
 
-    def fetchone(self, cur, executed):
-        if   callable(getattr(cur, 'fetchone', None)): # psycopg2
+    def fetchone(self, cur):
+        if   callable(getattr(cur, 'fetchone', None)): # psycopg2 or sql-alchemy
             return cur.fetchone()
-        elif callable(getattr(executed, 'one', None)): # sql-alchemy
-            return executed.one()
-        else:
-            raise ValueError("Unknown to fetch an item from specified session.")
+        raise ValueError("Unknown how to fetch an item from specified session.")
 
-    def fetchall(self, cur, executed):
-        if   callable(getattr(cur, 'fetchall', None)): # psycopg2
+    def fetchall(self, cur):
+        if   callable(getattr(cur, 'fetchall', None)): # psycopg2 or sql-alchemy
             return cur.fetchall()
-        elif callable(getattr(executed, 'all', None)): # sql-alchemy
-            return executed.all()
-        else:
-            raise ValueError("Unknown to fetch items from specified session.")
+        raise ValueError("Unknown how to fetch items from specified session.")
 
     @contextmanager
     def session(self, other_sess):
@@ -77,7 +71,7 @@ class QueueManager(object):
             except:
                 if conn and cur and (self.invoking_queue_id != None):
                     executed = cur.execute(self.report_sql % (self.invoking_queue_id,))
-                    res = self.fetchone(cur, executed)
+                    res = self.fetchone(cur if (not executed) else executed)
                     if res and res[0]:
                         conn.commit()
                 raise
@@ -174,7 +168,7 @@ listen %s;
             executed = cur.execute(self.insert_sql % (
                     tag, data,
                     schedule.strftime('timestamp \'%Y-%m-%d %H:%M:%S\'') if schedule else 'NULL', ))
-            res = self.fetchone(cur, executed)
+            res = self.fetchone(cur if (not executed) else executed)
             cur.execute(self.notify_sql % (tag,))
             if conn: conn.commit()
             return res[0] if res else None
@@ -184,7 +178,7 @@ listen %s;
         tag = self.check_tag(tag)
         with self.session(other_sess) as (conn, cur):
             executed = cur.execute(self.select_sql % (tag,))
-            res = self.fetchone(cur, executed)
+            res = self.fetchone(cur if (not executed) else executed)
             if res:
                 self.invoking_queue_id = res[0]
                 if ((0 < self.excepted_times_to_ignore) and
@@ -216,7 +210,7 @@ listen %s;
         while True:
             with self.session(None) as (conn, cur):
                 executed = cur.execute(self.select_sql % (tag,))
-                res = self.fetchone(cur, executed)
+                res = self.fetchone(cur if (not executed) else executed)
                 if res:
                     self.invoking_queue_id = res[0]
                     if not ((0 < self.excepted_times_to_ignore) and
@@ -239,7 +233,7 @@ listen %s;
                 if conn.notifies:
                     notify = conn.notifies.pop()
                     executed = cur.execute(self.select_sql % (tag,))
-                    res = self.fetchone(cur, executed)
+                    res = self.fetchone(cur if (not executed) else executed)
                     if res:
                         self.invoking_queue_id = res[0]
                         if not ((0 < self.excepted_times_to_ignore) and
@@ -258,7 +252,7 @@ listen %s;
         tag = self.check_tag(tag)
         with self.session(other_sess) as (conn, cur):
             executed = cur.execute(self.select_sql % (tag,))
-            res = self.fetchone(cur, executed)
+            res = self.fetchone(cur if (not executed) else executed)
             if res:
                 cur.execute(self.ack_sql % (res[0],))
                 if conn: conn.commit()
@@ -268,7 +262,7 @@ listen %s;
     def cancel(self, id, other_sess = None):
         with self.session(other_sess) as (conn, cur):
             executed = cur.execute(self.cancel_sql % (id,))
-            res = self.fetchone(cur, executed)
+            res = self.fetchone(cur if (not executed) else executed)
             if res and res[0]:
                 if conn: conn.commit()
                 return res[0]
@@ -279,7 +273,7 @@ listen %s;
         schedule = (" and (schedule is null or schedule <= current_timestamp)" if ignore_scheduled else "")
         with self.session(other_sess) as (conn, cur):
             executed = cur.execute(self.list_sql % (tag, schedule, ))
-            res = self.fetchall(cur, executed)
+            res = self.fetchall(cur if (not executed) else executed)
             return res
 
     def count(self, tag, other_sess = None, ignore_scheduled = True):
@@ -287,5 +281,5 @@ listen %s;
         schedule = (" and (schedule is null or schedule <= current_timestamp)" if ignore_scheduled else "")
         with self.session(other_sess) as (conn, cur):
             executed = cur.execute(self.count_sql % (tag, schedule, ))
-            res = self.fetchone(cur, executed)[0]
+            res = self.fetchone(cur if (not executed) else executed)[0]
             return int(res)
