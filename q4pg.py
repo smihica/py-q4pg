@@ -85,7 +85,7 @@ create table %s (
 );
 create index %s_tag_idx         on %s(tag);
 create index %s_created_at_idx  on %s(created_at);
-create index %s_schedule        on %s(schedule);
+create index %s_schedule_idx    on %s(schedule);
 """ % (n, self.data_length, n, n, n, n, n, n)
         self.drop_table_sql = """
 drop table %s;
