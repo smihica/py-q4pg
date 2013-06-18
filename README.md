@@ -169,7 +169,7 @@ import time
 from datetime import datetime, timedelta
 
 schedule = datetime.now() + timedelta(0, 1) # delay 1 second
-q.enqueue('tag', {'the_data': 'delay 1 second'})
+q.enqueue('tag', {'the_data': 'delay 1 second'}, schedule = schedule)
 q.dequeue_immediate('tag') # => None
 time.sleep(1) # sleep 1 second
 q.dequeue_immediate('tag') # => {'the_data': 'delay 1 second'}
