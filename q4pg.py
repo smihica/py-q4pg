@@ -115,6 +115,7 @@ select * from %s
     then pg_try_advisory_lock(tableoid::int, id)
     else false
   end
+  order by id
   limit 1;
 """ % (n,)
         self.list_sql = """
