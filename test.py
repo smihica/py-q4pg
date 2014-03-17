@@ -84,11 +84,11 @@ def dequeue_listen():
     qs = []
     for i in q.listen('tag'):
         qs.append(i)
-        if i == {'more': 'data'}:
+        if i == {'more': 'data3'}:
             break
-    if qs != [{'more': 'data2'},
-              {'more': 'data3'},
-              {'more': 'data'}]:
+    if qs != [{'more': 'data'},
+              {'more': 'data2'},
+              {'more': 'data3'}]:
         raise Exception("failed dequeue_listen 1")
     else:
         print 'OK dequeue_listen 1'
