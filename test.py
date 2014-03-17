@@ -27,44 +27,44 @@ def enqueue():
     if len(q.list('tag')) != 5:
         raise Exception("failed enqueue 1")
     else:
-        print 'OK enqueue 1'
+        print('OK enqueue 1')
     # checking id
     ids = [_0, _1, _2, _3, _4]
     if ids != list(range(1, 6)):
         raise Exception("failed enqueue 2")
     else:
-        print 'OK enqueue 2'
+        print('OK enqueue 2')
 
 def dequeue():
     with q.dequeue('tag') as dq:
         if dq != {'the_data': 'must_be'}:
             raise Exception("failed dequeue 1")
         else:
-            print 'OK dequeue 1'
+            print('OK dequeue 1')
     with q.dequeue('another_tag') as dq:
         if dq != None:
             raise Exception("failed dequeue 2")
         else:
-            print 'OK dequeue 2'
+            print('OK dequeue 2')
 
 def dequeue_line():
     with q.dequeue_item('tag') as dq:
         if (not (dq[1] == 'tag' and dq[2] == u'{"json":"serializable_data"}')):
             raise Exception("failed dequeue line 1")
         else:
-            print 'OK dequeue line 1'
+            print('OK dequeue line 1')
     with q.dequeue_item('another_tag') as dq:
         if dq != None:
             raise Exception("failed dequeue 2")
         else:
-            print 'OK dequeue line 2'
+            print('OK dequeue line 2')
 
 def show_list():
     lis = q.list('tag')
     if len(lis) != 3:
         raise Exception("failed list 1")
     else:
-        print 'OK list 1'
+        print('OK list 1')
 
 def dequeue_transaction():
     before = q.list('tag')[0]
@@ -78,7 +78,7 @@ def dequeue_transaction():
             (before[4] + 1) == after[4]): # check if error +1?
         raise Exception("failed dequeue_transaction 1")
     else:
-        print 'OK dequeue_transaction 1'
+        print('OK dequeue_transaction 1')
 
 def dequeue_listen():
     qs = []
@@ -91,7 +91,7 @@ def dequeue_listen():
               {'more': 'data3'}]:
         raise Exception("failed dequeue_listen 1")
     else:
-        print 'OK dequeue_listen 1'
+        print('OK dequeue_listen 1')
 
 def dequeue_item_listen():
     q.enqueue('tag', {'new': 'data'})
@@ -103,18 +103,18 @@ def dequeue_item_listen():
     if qs[0] != 6 or qs[1] != 'tag' or qs[2] != '{"new":"data"}':
         raise Exception("failed dequeue_item_listen 1")
     else:
-        print 'OK dequeue_item_listen 1'
+        print('OK dequeue_item_listen 1')
 
 def count_item():
     if q.count('tag') != 1:
         raise Exception("failed count_item 1")
     else:
-        print 'OK count_item 1'
+        print('OK count_item 1')
     q.enqueue('tag', {'new': 'data2'})
     if q.count('tag') != 2:
         raise Exception("failed count_item 2")
     else:
-        print 'OK count_item 2'
+        print('OK count_item 2')
 
 def cancel():
     if ((not q.cancel(6)) or
@@ -123,7 +123,7 @@ def cancel():
         q.count('tag') != 0):
         raise Exception("failed cancel 1")
     else:
-        print 'OK cancel 1'
+        print('OK cancel 1')
 
 def excepted_times_to_ignore():
     q.excepted_times_to_ignore = 2
@@ -144,7 +144,7 @@ def excepted_times_to_ignore():
                 try:
                     with q.dequeue('tag') as dq:
                         if (dq == None):
-                            print 'OK excepted_times_to_ignore 1'
+                            print('OK excepted_times_to_ignore 1')
                             return
                 except:
                     pass
@@ -178,8 +178,7 @@ def excepted_times_to_ignore_listen():
     if err or (q.count('tag') != 1):
         raise Exception("failed excepted_times_to_ignore_listen 1")
     else:
-        print 'OK excepted_times_to_ignore_listen 1'
-
+        print('OK excepted_times_to_ignore_listen 1')
 
 def dequeue_and_listen_item_timeout():
     err = False
@@ -188,7 +187,7 @@ def dequeue_and_listen_item_timeout():
     if err:
         raise Exception("failed dequeue_and_listen_item_timeout 1")
     else:
-        print 'OK dequeue_and_listen_item_timeout 1'
+        print('OK dequeue_and_listen_item_timeout 1')
 
     timeout_sec = 3
     before = datetime.now()
@@ -201,7 +200,7 @@ def dequeue_and_listen_item_timeout():
     if err:
         raise Exception("failed dequeue_and_listen_item_timeout 2")
     else:
-        print 'OK dequeue_and_listen_item_timeout 2'
+        print('OK dequeue_and_listen_item_timeout 2')
 
 def dequeue_item_immediate():
     q.enqueue("tag_dii", {'id': 0})
@@ -241,7 +240,7 @@ def dequeue_transaction_none():
                 raise Exception(idt)
     except Exception as e:
         if str(e) == idt and q.list('tag')[0][4] <= 1:
-            print 'OK dequeue_transaction_none 2'
+            print('OK dequeue_transaction_none 2')
         else:
             raise Exception("failed dequeue_transaction_none 2")
 
@@ -250,16 +249,17 @@ def dangerous_data_sanitizing():
         q.enqueue("I'm", {})
     except ValueError as e:
         if str(e) == "Invalid tag-name. invalid char \"'\" is in tag-name.":
-            print 'OK dangerous_data_sanitizing 1'
+            print('OK dangerous_data_sanitizing 1')
         else:
             raise Exception("failed dangerous_data_sanitizing 1")
     data = {"'ah''basjd''f'f'kk'''a'ha": "uuu'xxx"}
     q.enqueue("thats", data)
     dq = q.dequeue_immediate("thats")
     if (dq == data):
-        print 'OK dangerous_data_sanitizing 2'
+        print('OK dangerous_data_sanitizing 2')
     else:
         raise Exception("failed dangerous_data_sanitizing 1")
+
 
 def wait_until_convenient():
     while True:
@@ -281,14 +281,14 @@ def scheduling():
     time.sleep(1.05)
     dq = q.dequeue_immediate("scheduling")
     if dq:
-        print 'OK scheduling 1'
+        print('OK scheduling 1')
     else:
         raise Exception("failed scheduling 3")
     # checking listen and order.
     wait_until_convenient()
     now = datetime.now()
     s = now + timedelta(0, 2) # after 2 sec
-    src = [{'order': i} for i in xrange(10)]
+    src = [{'order': i} for i in range(10)]
     for i in src: q.enqueue("scheduling", i, schedule = s)
     res = []
     before = datetime.now()
@@ -300,7 +300,7 @@ def scheduling():
         res.append(dq)
         if (len(res) == len(src)): break
     if (src == res):
-        print 'OK scheduling 2'
+        print('OK scheduling 2')
     else:
         raise Exception("failed scheduling 5")
     # checking preserving order when varied scheduled queue post in varied timing.
@@ -344,11 +344,11 @@ def scheduling():
         if s != r[0]:
             raise Exception("failed scheduling 6 " + str(s) + ", " + str(r) + ", " + str(res))
         span = r[1]
-        ideal = (1 if i < 6 else (i / 3))
+        ideal = (1 if i < 6 else (int(i / 3) + 0.3))
         if span < (ideal - 0.3) or (ideal + 0.3) < span:
-            raise Exception("failed scheduling 7 " + str(ideal) + ", " + str(r) + ", " + str(res))
+            raise Exception("failed scheduling 7 " + str(ideal) + ", " + str(span))
         i+=1
-    print 'OK scheduling 3'
+    print('OK scheduling 3')
     while True:
         i = q.dequeue_immediate("scheduling")
         if i == None: break
@@ -366,14 +366,14 @@ def scheduling():
     if (q.count("scheduling") < 1 or
         len(q.list("scheduling")) < 1):
         raise Exception("failed scheduling 10.")
-    print 'OK scheduling 4'
+    print('OK scheduling 4')
 
 
 def main():
     global q
     dsn = None
     if len(sys.argv) < 2:
-        print 'set dsn for first argument.'
+        print('set dsn for first argument.')
         sys.exit(1)
     dsn = sys.argv[1]
     q = q4pg.QueueManager(dsn, table_name=gettable())

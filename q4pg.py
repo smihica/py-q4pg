@@ -35,7 +35,7 @@ class QueueManager(object):
         elif type(dsn) == str:
             mat = re.match(r'^(.+)://(.+?)(?::(.*)|)@(.+?)(?::(.*?)|)/(.+)', dsn)
             if mat: # is it url arg? (driver://username:password@hostname:port/dbname)
-                driver, username, password, hostname, port, dbname = map(lambda i: mat.group(i), xrange(1,7))
+                driver, username, password, hostname, port, dbname = map(lambda i: mat.group(i), range(1,7))
                 if not (driver in ('postgresql', 'postgres', 'psql', )):
                     raise Exception("Invalid driver (%s). QueueManager supports only 'postgresql://'." % driver)
                 self.dsn = "user=%s host=%s dbname=%s" % (username, hostname, dbname, )
