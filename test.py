@@ -203,6 +203,27 @@ def dequeue_and_listen_item_timeout():
     else:
         print 'OK dequeue_and_listen_item_timeout 2'
 
+def dequeue_item_immediate():
+    q.enqueue("tag_dii", {'id': 0})
+    q.enqueue("tag_dii", {'id': 1})
+    dq = q.dequeue_item_immediate("tag_dii")
+    if dq[1] != 'tag_dii' or dq[2] != '{"id":0}':
+        raise Exception("failed dequeue_item_immediate 1")
+    else:
+        print('OK dequeue_item_immediate 1')
+    if len(q.list('tag_dii')) != 1:
+        raise Exception("failed dequeue_item_immediate 2")
+    else:
+        print('OK dequeue_item_immediate 2')
+    dq = q.dequeue_item_immediate("tag_dii")
+    if dq[1] != 'tag_dii' or dq[2] != '{"id":1}':
+        raise Exception("failed dequeue_item_immediate 3")
+    else:
+        print('OK dequeue_item_immediate 3')
+    if len(q.list('tag_dii')) != 0:
+        raise Exception("failed dequeue_item_immediate 4")
+    else:
+        print('OK dequeue_item_immediate 4')
 
 def dequeue_transaction_none():
     idt = "test-exception"
@@ -370,6 +391,7 @@ def main():
         excepted_times_to_ignore()
         excepted_times_to_ignore_listen()
         dequeue_and_listen_item_timeout()
+        dequeue_item_immediate()
         dequeue_transaction_none()
         dangerous_data_sanitizing()
         scheduling()

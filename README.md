@@ -158,7 +158,7 @@ q.dequeue_immediate('tag')            # removed immediately, not transactional.
 ##### dequeue-item (immediate)
 ```python
 q.dequeue_item_immediate('tag')       # removed immediately, not transactional.
-# => (1, 'tag', {'json': 'serializable_data'}, datetime.datetime(...), 1)
+# => (1, 'tag', '{"json":"serializable_data"}', datetime.datetime(...), 1)
 #
 # this also can use other session (optional).
 ```

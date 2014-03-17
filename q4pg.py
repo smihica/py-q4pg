@@ -249,7 +249,7 @@ listen %s;
         for d in self.listen_item(tag, timeout=timeout):
             yield (self.deserializer(d[2]) if d != None else None)
 
-    def dequeue_immediate(self, tag, other_sess = None):
+    def dequeue_item_immediate(self, tag, other_sess = None):
         tag = self.check_tag(tag)
         with self.session(other_sess) as (conn, cur):
             executed = cur.execute(self.select_sql % (tag,))
@@ -257,8 +257,12 @@ listen %s;
             if res:
                 cur.execute(self.ack_sql % (res[0],))
                 if conn: conn.commit()
-                return self.deserializer(res[2])
+                return res
             return res
+
+    def dequeue_immediate(self, tag, other_sess = None):
+        res = self.dequeue_item_immediate(tag, other_sess)
+        return self.deserializer(res[2]) if res else res
 
     def cancel(self, id, other_sess = None):
         with self.session(other_sess) as (conn, cur):
