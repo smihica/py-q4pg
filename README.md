@@ -136,8 +136,6 @@ for i in q.listen('tag'):             # waiting for queue notification.
 for i in q.listen_item('tag'):        # waiting for queue notification.
     print i
 # => (1, 'tag', {'foo', 'bar'}, datetime.datetime(...), 0)
-#
-# this also can use other session (optional).
 ```
 
 ##### dequeue and dequeue-item (listen with timeout)
