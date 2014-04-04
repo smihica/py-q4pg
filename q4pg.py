@@ -96,7 +96,9 @@ create table %s (
 create index %s_tag_idx         on %s(tag);
 create index %s_created_at_idx  on %s(created_at);
 create index %s_schedule_idx    on %s(schedule);
-""" % (n, self.data_length, n, n, n, n, n, n)
+alter sequence %s_id_seq cycle;
+alter sequence %s_id_seq maxvalue 2147483647;
+""" % (n, self.data_length, n, n, n, n, n, n, n, n)
         self.drop_table_sql = """
 drop table %s;
 """ % (n,)
@@ -204,7 +206,7 @@ listen %s;
                 yield res
             return
 
-    def listen_item(self, tag, timeout=None):
+    def listen_item(self, tag, timeout = None):
         tag         = self.check_tag(tag)
         wait_start  = datetime.now()
         interval    = self.LISTEN_TIMEOUT_INTERVAL_SECONDS
@@ -245,7 +247,7 @@ listen %s;
                         conn.commit()
                         self.invoking_queue_id = None
 
-    def listen(self, tag, timeout=None):
+    def listen(self, tag, timeout = None):
         for d in self.listen_item(tag, timeout=timeout):
             yield (self.deserializer(d[2]) if d != None else None)
 
