@@ -24,7 +24,7 @@ class QueueManager(object):
         self.deserializer = lambda d: d
         self.excepted_times_to_ignore = excepted_times_to_ignore
         if data_type is "json":
-            self.serializer   = lambda d: json.dumps(d, separators=(',',':'))
+            self.serializer   = lambda d: json.dumps(d, separators=(',',': '))
             self.deserializer = lambda d: json.loads(d)
         self.setup_sqls()
         self.invoking_queue_id = None
