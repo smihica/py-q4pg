@@ -248,7 +248,7 @@ def dangerous_data_sanitizing():
     try:
         q.enqueue("I'm", {})
     except ValueError as e:
-        if str(e) == "Invalid tag-name. invalid char \"'\" is in tag-name.":
+        if str(e)[0:16] == "Invalid tag-name":
             print('OK dangerous_data_sanitizing 1')
         else:
             raise Exception("failed dangerous_data_sanitizing 1")
@@ -368,6 +368,11 @@ def scheduling():
         raise Exception("failed scheduling 10.")
     print('OK scheduling 4')
 
+def enqueue2():
+    _0 = q.enqueue('tag', {'int_param': 1})
+    print('OK enqueue2 1')
+    _0 = q.enqueue('tag', {'float_param': 0.01})
+    print('OK enqueue2 2')
 
 def main():
     global q
@@ -395,6 +400,7 @@ def main():
         dequeue_transaction_none()
         dangerous_data_sanitizing()
         scheduling()
+        enqueue2()
     except:
         raise
     finally:

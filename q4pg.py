@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 from datetime import datetime
+from sqlalchemy.orm.session import Session
 import select, json, re, psycopg2
 import psycopg2.extensions
 
@@ -10,6 +11,7 @@ def get_timespan(start):
 class QueueManager(object):
 
     LISTEN_TIMEOUT_INTERVAL_SECONDS = 1 # second
+    TAG_RE = re.compile(r"^[A-Za-z0-9\-_\+]+$")
 
     def __init__(self,
                  dsn="", table_name="mq",
@@ -24,7 +26,7 @@ class QueueManager(object):
         self.deserializer = lambda d: d
         self.excepted_times_to_ignore = excepted_times_to_ignore
         if data_type is "json":
-            self.serializer   = lambda d: json.dumps(d, separators=(',',': '))
+            self.serializer   = lambda d: json.dumps(d, separators=(',',':'))
             self.deserializer = lambda d: json.loads(d)
         self.setup_sqls()
         self.invoking_queue_id = None
@@ -61,7 +63,10 @@ class QueueManager(object):
         conn = None
         cur  = None
         if other_sess:
-            cur  = other_sess
+            if isinstance(other_sess, Session):
+                cur = other_sess.connection().connection.cursor()
+            else:
+                cur = other_sess
             yield (conn, cur)
         else:
             try:
@@ -103,8 +108,9 @@ alter sequence %s_id_seq maxvalue 2147483647;
 drop table %s;
 """ % (n,)
         self.insert_sql = """
-insert into %s (tag, content, schedule) values ('%%s', '%%s', %%s) returning id;
+insert into %s (tag, content, schedule) values (%%(tag)s, %%(content)s, %%(schedule)s) returning id;
 """ % (n,)
+
         self.report_sql = """
 update %s set except_times = except_times + 1
   where id = %%s and pg_try_advisory_lock(tableoid::int, id)
@@ -113,7 +119,7 @@ update %s set except_times = except_times + 1
         self.select_sql = """
 select * from %s
   where case
-    when (tag = '%%s' and (schedule is null or schedule <= current_timestamp))
+    when (tag = %%(tag)s and (schedule is null or schedule <= current_timestamp))
     then pg_try_advisory_lock(tableoid::int, id)
     else false
   end
@@ -122,11 +128,11 @@ select * from %s
 """ % (n,)
         self.list_sql = """
 select * from %s
-  where case when (tag = '%%s'%%s) then pg_try_advisory_lock(tableoid::int, id) else false end;
+  where case when (tag = %%%%(tag)s%%s) then pg_try_advisory_lock(tableoid::int, id) else false end;
 """ % (n,)
         self.count_sql = """
 select count(*) from %s
-  where case when (tag = '%%s'%%s) then pg_try_advisory_lock(tableoid::int, id) else false end;
+  where case when (tag = %%%%(tag)s%%s) then pg_try_advisory_lock(tableoid::int, id) else false end;
 """ % (n,)
         self.cancel_sql = """
 delete from %s where id = %%s and pg_try_advisory_lock(tableoid::int, id)
@@ -157,20 +163,15 @@ listen %s;
         self.drop_table(other_sess)
         self.create_table(other_sess)
 
-    def sanitize(self, string):
-        return string.replace("'", "''")
-
     def check_tag(self, tag):
-        if "'" in tag:
-            raise ValueError("Invalid tag-name. invalid char \"'\" is in tag-name.")
+        if not self.TAG_RE.match(tag):
+            raise ValueError("Invalid tag-name \"%s\". tag-name must be matched \"^[A-Za-z0-9\-_\+]+$\"." % tag)
         return tag
 
     def enqueue(self, tag, data, other_sess = None, schedule = None):
-        tag, data = (self.check_tag(tag), self.sanitize(self.serializer(data)), )
+        tag, data = (self.check_tag(tag), self.serializer(data), )
         with self.session(other_sess) as (conn, cur):
-            executed = cur.execute(self.insert_sql % (
-                    tag, data,
-                    schedule.strftime('timestamp \'%Y-%m-%d %H:%M:%S\'') if schedule else 'NULL', ))
+            executed = cur.execute(self.insert_sql, dict( tag=tag, content=data, schedule=schedule ))
             res = self.fetchone(cur if (not executed) else executed)
             cur.execute(self.notify_sql % (tag,))
             if conn: conn.commit()
@@ -180,7 +181,7 @@ listen %s;
     def dequeue_item(self, tag, other_sess = None):
         tag = self.check_tag(tag)
         with self.session(other_sess) as (conn, cur):
-            executed = cur.execute(self.select_sql % (tag,))
+            executed = cur.execute(self.select_sql, dict(tag=tag))
             res = self.fetchone(cur if (not executed) else executed)
             if res:
                 self.invoking_queue_id = res[0]
@@ -212,7 +213,7 @@ listen %s;
         interval    = self.LISTEN_TIMEOUT_INTERVAL_SECONDS
         while True:
             with self.session(None) as (conn, cur):
-                executed = cur.execute(self.select_sql % (tag,))
+                executed = cur.execute(self.select_sql, dict(tag=tag))
                 res = self.fetchone(cur if (not executed) else executed)
                 if res:
                     self.invoking_queue_id = res[0]
@@ -235,7 +236,7 @@ listen %s;
                 conn.poll()
                 if conn.notifies:
                     notify = conn.notifies.pop()
-                    executed = cur.execute(self.select_sql % (tag,))
+                    executed = cur.execute(self.select_sql, dict(tag=tag))
                     res = self.fetchone(cur if (not executed) else executed)
                     if res:
                         self.invoking_queue_id = res[0]
@@ -254,7 +255,7 @@ listen %s;
     def dequeue_item_immediate(self, tag, other_sess = None):
         tag = self.check_tag(tag)
         with self.session(other_sess) as (conn, cur):
-            executed = cur.execute(self.select_sql % (tag,))
+            executed = cur.execute(self.select_sql, dict(tag=tag))
             res = self.fetchone(cur if (not executed) else executed)
             if res:
                 cur.execute(self.ack_sql % (res[0],))
@@ -278,15 +279,17 @@ listen %s;
     def list(self, tag, other_sess = None, ignore_scheduled = True):
         tag = self.check_tag(tag)
         schedule = (" and (schedule is null or schedule <= current_timestamp)" if ignore_scheduled else "")
+        list_sql = self.list_sql % schedule
         with self.session(other_sess) as (conn, cur):
-            executed = cur.execute(self.list_sql % (tag, schedule, ))
+            executed = cur.execute(list_sql, dict(tag=tag))
             res = self.fetchall(cur if (not executed) else executed)
             return res
 
     def count(self, tag, other_sess = None, ignore_scheduled = True):
         tag = self.check_tag(tag)
         schedule = (" and (schedule is null or schedule <= current_timestamp)" if ignore_scheduled else "")
+        count_sql = self.count_sql % schedule
         with self.session(other_sess) as (conn, cur):
-            executed = cur.execute(self.count_sql % (tag, schedule, ))
+            executed = cur.execute(count_sql, dict(tag=tag))
             res = self.fetchone(cur if (not executed) else executed)[0]
             return int(res)

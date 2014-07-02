@@ -4,14 +4,14 @@ from distutils.core import setup, Extension
 setup(
     name = 'py-q4pg',
     py_modules = ['q4pg'],
-    version = '0.1.1',
+    version = '0.1.2',
     description = 'A simple transactional message queue using PostgreSQL in Python.',
     author='Shin Aoyama',
     author_email = "smihica@gmail.com",
     url = "https://github.com/smihica/py-q4pg",
     download_url = "",
     keywords = ["db", "queue", "psql"],
-    install_requires = ['psycopg2'],
+    install_requires = ['psycopg2', 'sqlalchemy'],
     classifiers = [
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
