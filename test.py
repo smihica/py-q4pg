@@ -405,10 +405,11 @@ def multiprocess_tasks():
     [j.join() for j in jobs]
 
     processed_data = set()
-    qsize = queue.qsize()
+    qsize = 0
     while not queue.empty():
         item = queue.get()
         data = item.get('data')
+        qsize += 1
         if data in processed_data:
             raise Exception("failed multiprocess_tasks - data %s has been processed already" % (data, ))
         processed_data.add(item.get('data'))
