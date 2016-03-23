@@ -1,6 +1,7 @@
 #!/usr/bin/env python
-import sys, q4pg, time
+import os, sys, q4pg, time
 from datetime import datetime, timedelta
+from multiprocessing import Process, Queue
 
 q = None
 
@@ -172,7 +173,7 @@ def excepted_times_to_ignore_listen():
                 try:
                     for dq in q.listen_item('tag'):
                         err = (dq[2] != '{"err":"data2"}')
-                        break;
+                        break
                 except:
                     pass
     if err or (q.count('tag') != 1):
@@ -374,6 +375,49 @@ def enqueue2():
     _0 = q.enqueue('tag', {'float_param': 0.01})
     print('OK enqueue2 2')
 
+def multiprocess_tasks():
+    wait_until_convenient()
+    TAG = "message_q"
+    def fetch_task(queue):
+        pid = os.getpid()
+        count = 0
+        for dq in q.listen(TAG, timeout=10):
+            s = { 'pid': pid, 'data': dq }
+            if dq:
+                count += 1
+                queue.put(s)
+
+            if dq == None:
+                break
+        return count
+
+    test_items = range(1, 300)
+    for i in test_items:
+        q.enqueue(TAG, i)
+
+    jobs = []
+    wait_until_convenient()
+    queue = Queue()
+    for i in range(1, 6):
+        job = Process(target=fetch_task, args=(queue,))
+        jobs.append(job)
+        job.start()
+    [j.join() for j in jobs]
+
+    processed_data = set()
+    qsize = queue.qsize()
+    while not queue.empty():
+        item = queue.get()
+        data = item.get('data')
+        if data in processed_data:
+            raise Exception("failed multiprocess_tasks - data %s has been processed already" % (data, ))
+        processed_data.add(item.get('data'))
+
+    if qsize == len(test_items):
+        print("OK multiprocess_tasks")
+    else:
+        raise Exception("failed multiprocess_tasks - tasks are not complete")
+
 def main():
     global q
     dsn = None
@@ -401,6 +445,7 @@ def main():
         dangerous_data_sanitizing()
         scheduling()
         enqueue2()
+        multiprocess_tasks()
     except:
         raise
     finally:
