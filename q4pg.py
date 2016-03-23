@@ -124,7 +124,8 @@ select * from %s
     else false
   end
   order by id
-  limit 1;
+  limit 1
+  for update;
 """ % (n,)
         self.list_sql = """
 select * from %s
