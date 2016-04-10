@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 import os, sys, q4pg, time
 from datetime import datetime, timedelta
-from multiprocessing import Process, Queue
+from multiprocessing import Process
+from multiprocessing.queues import Queue
+from random import uniform
+from time import sleep
+from timeit import default_timer as timer
 
 q = None
 
@@ -375,34 +379,45 @@ def enqueue2():
     _0 = q.enqueue('tag', {'float_param': 0.01})
     print('OK enqueue2 2')
 
-def multiprocess_tasks():
+def test_multiprocess_tasks():
     wait_until_convenient()
     TAG = "message_q"
     def fetch_task(queue):
         pid = os.getpid()
         count = 0
-        for dq in q.listen(TAG, timeout=10):
+        for dq in q.listen(TAG, timeout=1):
             s = { 'pid': pid, 'data': dq }
             if dq:
                 count += 1
                 queue.put(s)
+                sleep(uniform(0.1, 0.5)) # sleep 0.1~0.5 seconds randomly
+            elif q.count(TAG) == 0:
+                return count # the number of tasks done by this process
 
-            if dq == None:
-                break
-        return count
 
-    test_items = range(1, 300)
+    test_items = range(0, 10000) # enqueue 10000 tasks
     for i in test_items:
-        q.enqueue(TAG, i)
+        q.enqueue(TAG, i + 1)
+
+    while q.count(TAG) != len(test_items): # wait until test data is ready
+        wait_until_convenient()
 
     jobs = []
     wait_until_convenient()
     queue = Queue()
-    for i in range(1, 6):
+    start = timer()
+    num_p = 30 # the number of processes to use
+    for i in range(0, num_p):
         job = Process(target=fetch_task, args=(queue,))
         jobs.append(job)
-        job.start()
-    [j.join() for j in jobs]
+        job.start() # start task process
+
+    remaining = q.count(TAG)
+    while remaining > 0: # wait until the queue is consumed completely
+        remaining = q.count(TAG)
+        sys.stdout.write('\rRunning test_multiprocess_tasks - remaining %5d/%5d' % (remaining, len(test_items),))
+        sys.stdout.flush()
+        wait_until_convenient()
 
     processed_data = set()
     qsize = 0
@@ -410,14 +425,17 @@ def multiprocess_tasks():
         item = queue.get()
         data = item.get('data')
         qsize += 1
-        if data in processed_data:
-            raise Exception("failed multiprocess_tasks - data %s has been processed already" % (data, ))
+        assert data not in processed_data, "failed test_multiprocess_tasks - data %s has been processed already" % (data, )
         processed_data.add(item.get('data'))
 
-    if qsize == len(test_items):
-        print("OK multiprocess_tasks")
-    else:
-        raise Exception("failed multiprocess_tasks - tasks are not complete")
+    queue.close()
+    queue.join_thread()
+    for j in jobs:
+        j.join()
+
+    assert qsize == len(test_items), "failed test_multiprocess_tasks - tasks are not complete %d/%d" % (qsize, len(test_items), )
+    end = timer()
+    print("\rOK test_multiprocess_tasks - %d done in %5d seconds" % (qsize, end - start))
 
 def main():
     global q
@@ -446,7 +464,7 @@ def main():
         dangerous_data_sanitizing()
         scheduling()
         enqueue2()
-        multiprocess_tasks()
+        test_multiprocess_tasks()
     except:
         raise
     finally:
